@@ -8,13 +8,26 @@ from src.providers.routes import router as providers_router
 from src.requests.routes import router as requests_router
 from src.reviews.routes import router as reviews_router
 
-app = FastAPI(title="Local Service Marketplace API")
+app = FastAPI(
+    title="Local Service Marketplace API",
+    description=(
+        "A local service marketplace API for discovering providers, managing "
+        "service requests, provider availability, reviews, and administration."
+    ),
+    contact={
+        "name": "Developer",
+        "url": "https://www.github.com/allhailbotgod",
+        "email": "jayrad005@gmail.com",
+    },
+)
 
-# The plain frontend is served by a small local development server.  Keep the
-# browser policy limited to local development origins rather than allowing all
-# cross-origin requests.
+# Allow the deployed GitHub Pages frontend and local development servers.
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=[
+        "https://allhailbotgod.github.io",
+        "https://allhailbotgod.github.io/infofit-hackathon/",
+    ],
     allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?$",
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
