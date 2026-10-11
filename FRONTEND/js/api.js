@@ -2,6 +2,8 @@ import { API_BASE_URL } from "./config.js";
 import { clearSession, token } from "./auth.js";
 
 const CATEGORY_CACHE_TTL = 60_000;
+const REQUEST_TIMEOUT_MS = 30_000;
+const RETRY_DELAY_MS = 1_000;
 let categoryCache;
 let categoryRequest;
 
@@ -14,10 +16,38 @@ async function request(path, options = {}) {
     !(options.body instanceof URLSearchParams)
   )
     headers.set("Content-Type", "application/json");
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  const method = (options.method || "GET").toUpperCase();
+  let response;
+  let lastError;
+
+  // One GET retry gives Render a chance to finish waking up without repeating
+  // mutations that may already have reached the API.
+  for (let attempt = 0; attempt < (method === "GET" ? 2 : 1); attempt += 1) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      response = await fetch(`${API_BASE_URL}${path}`, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      });
+      break;
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0 && method === "GET") {
+        await new Promise((resolve) => window.setTimeout(resolve, RETRY_DELAY_MS));
+      }
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
+  if (!response) {
+    if (lastError?.name === "AbortError") {
+      throw new Error("The service is taking too long to respond. Please try again.");
+    }
+    throw new Error("Unable to reach the service. Please check your connection and try again.");
+  }
   const contentType = response.headers.get("content-type") || "";
   const body = contentType.includes("application/json")
     ? await response.json()

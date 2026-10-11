@@ -2,6 +2,7 @@ import { escapeHtml, statusBadge } from './utils.js';
 
 export function loading(label = 'Loading…') { return `<section class="page-state"><p>${escapeHtml(label)}</p></section>`; }
 export function message(text, kind = 'info') { return `<p class="message ${kind}">${escapeHtml(text)}</p>`; }
+export function loadError(text) { return `<div class="load-error" role="alert"><p>${escapeHtml(text)}</p><button class="button button-secondary" type="button" data-retry>Try again</button></div>`; }
 
 export function providerCard(provider) {
   const services = provider.services.map(service => `<span class="tag">${escapeHtml(service.name)}</span>`).join('') || '<span class="muted">No services listed</span>';
