@@ -1,6 +1,10 @@
 import { API_BASE_URL } from "./config.js";
 import { clearSession, token } from "./auth.js";
 
+const CATEGORY_CACHE_TTL = 60_000;
+let categoryCache;
+let categoryRequest;
+
 async function request(path, options = {}) {
   const headers = new Headers(options.headers || {});
   if (token()) headers.set("Authorization", `Bearer ${token()}`);
@@ -38,6 +42,27 @@ function query(params = {}) {
   return clean.length ? `?${new URLSearchParams(clean)}` : "";
 }
 
+function categories() {
+  if (categoryCache && categoryCache.expiresAt > Date.now()) {
+    return Promise.resolve(categoryCache.value);
+  }
+  if (!categoryRequest) {
+    categoryRequest = request("/categories")
+      .then((value) => {
+        categoryCache = { value, expiresAt: Date.now() + CATEGORY_CACHE_TTL };
+        return value;
+      })
+      .finally(() => {
+        categoryRequest = null;
+      });
+  }
+  return categoryRequest;
+}
+
+function invalidateCategories() {
+  categoryCache = null;
+}
+
 export const api = {
   register: (data) =>
     request("/auth/register", { method: "POST", body: JSON.stringify(data) }),
@@ -50,15 +75,28 @@ export const api = {
     });
   },
   me: () => request("/auth/me"),
-  categories: () => request("/categories"),
-  createCategory: (data) =>
-    request("/categories", { method: "POST", body: JSON.stringify(data) }),
-  updateCategory: (id, data) =>
-    request(`/categories/${id}`, {
+  categories,
+  async createCategory(data) {
+    const result = await request("/categories", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    invalidateCategories();
+    return result;
+  },
+  async updateCategory(id, data) {
+    const result = await request(`/categories/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
-    }),
-  deleteCategory: (id) => request(`/categories/${id}`, { method: "DELETE" }),
+    });
+    invalidateCategories();
+    return result;
+  },
+  async deleteCategory(id) {
+    const result = await request(`/categories/${id}`, { method: "DELETE" });
+    invalidateCategories();
+    return result;
+  },
   providers: (filters) => request(`/providers${query(filters)}`),
   provider: (id) => request(`/providers/${id}`),
   reviews: (id) => request(`/providers/${id}/reviews`),

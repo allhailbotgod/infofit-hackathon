@@ -1,13 +1,14 @@
 import { api } from './api.js';
 import { clearSession, saveSession, token, user } from './auth.js';
 import { loading, message, renderNav } from './components.js';
-import { bindPublicPage, accountPage, homePage, loginPage, providerPage, providersPage, registerPage, requestFormPage } from './pages/public.js';
-import { adminPage, bindDashboardPage, providerDashboardPage, requestsPage } from './pages/dashboard.js';
+import { bindPublicPage, accountPage, homePage, loadHomeCategories, loginPage, providerPage, providersPage, registerPage, requestFormPage } from './pages/public.js';
 import { errorMessage } from './utils.js';
 
 const app = document.querySelector('#app');
 const nav = document.querySelector('#nav-links');
 const protectedRoutes = { requests: ['customer', 'provider', 'admin'], account: ['customer'], 'provider-dashboard': ['provider'], admin: ['admin'], request: ['customer'] };
+const dashboardRoutes = new Set(['requests', 'provider-dashboard', 'admin']);
+let renderVersion = 0;
 
 function routeInfo() {
   const [path = 'home', query = ''] = location.hash.slice(1).split('?');
@@ -21,6 +22,7 @@ function refreshNav() {
 }
 
 async function render() {
+  const version = ++renderVersion;
   const route = routeInfo();
   const currentUser = user();
   refreshNav();
@@ -28,28 +30,40 @@ async function render() {
     location.hash = currentUser ? '#home' : '#login';
     return;
   }
-  app.innerHTML = loading();
+  if (!['home', 'login', 'register', 'account'].includes(route.name)) app.innerHTML = loading();
   try {
+    const dashboard = dashboardRoutes.has(route.name) ? await import('./pages/dashboard.js') : null;
     let html;
-    if (route.name === 'home') html = await homePage();
+    if (route.name === 'home') html = homePage();
     else if (route.name === 'login') html = loginPage();
     else if (route.name === 'register') html = registerPage();
     else if (route.name === 'providers') html = await providersPage(route.params);
     else if (route.name === 'provider' && route.id) html = await providerPage(route.id);
     else if (route.name === 'request' && route.id) html = await requestFormPage(route.id);
-    else if (route.name === 'requests') html = await requestsPage();
+    else if (route.name === 'requests') html = await dashboard.requestsPage();
     else if (route.name === 'account') html = accountPage();
-    else if (route.name === 'provider-dashboard') html = await providerDashboardPage();
-    else if (route.name === 'admin') html = await adminPage();
+    else if (route.name === 'provider-dashboard') html = await dashboard.providerDashboardPage();
+    else if (route.name === 'admin') html = await dashboard.adminPage();
     else { location.hash = '#home'; return; }
+    if (version !== renderVersion) return;
     app.innerHTML = html;
     bindPublicPage(route);
-    bindDashboardPage(route);
+    dashboard?.bindDashboardPage(route);
     app.focus();
+    if (route.name === 'home') {
+      const categoryGrid = app.querySelector('#category-grid');
+      loadHomeCategories(categoryGrid).catch(error => {
+        if (version === renderVersion) showError(error);
+      });
+    }
   } catch (error) {
-    app.innerHTML = `<section class="page-state">${message(errorMessage(error), 'error')}<button class="button button-secondary" id="try-again">Try again</button></section>`;
-    document.querySelector('#try-again').addEventListener('click', render);
+    if (version === renderVersion) showError(error);
   }
+}
+
+function showError(error) {
+  app.innerHTML = `<section class="page-state">${message(errorMessage(error), 'error')}<button class="button button-secondary" id="try-again">Try again</button></section>`;
+  app.querySelector('#try-again').addEventListener('click', render);
 }
 
 document.querySelector('#menu-toggle').addEventListener('click', () => nav.classList.toggle('open'));

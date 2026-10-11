@@ -3,10 +3,21 @@ import { saveSession, saveToken, user } from '../auth.js';
 import { providerCard, message } from '../components.js';
 import { dateLabel, errorMessage, escapeHtml, formDataObject, setSubmitting, showToast, today } from '../utils.js';
 
-export async function homePage() {
-  const categories = await api.categories();
+function categoryCards(categories) {
+  return categories.length
+    ? categories.map(category => `<a class="card category-card" href="#providers?service_id=${category.id}"><h3>${escapeHtml(category.name)}</h3><p>${escapeHtml(category.description)}</p></a>`).join('')
+    : '<p>No service categories are available yet.</p>';
+}
+
+export function homePage() {
   return `<section class="hero"><div><p class="eyebrow">LOCAL SERVICES, MADE SIMPLE</p><h1>Find a capable hand nearby.</h1><p>Connect with local professionals for home, repair and everyday services.</p><div class="actions"><a class="button" href="#providers">Find a provider</a><a class="button button-secondary" href="#register">Join the marketplace</a></div></div></section>
-  <section class="content-section"><div class="section-heading"><div><p class="eyebrow">BROWSE SERVICES</p><h2>What do you need help with?</h2></div><a href="#providers">See providers</a></div><div class="category-grid">${categories.length ? categories.map(category => `<a class="card category-card" href="#providers?service_id=${category.id}"><h3>${escapeHtml(category.name)}</h3><p>${escapeHtml(category.description)}</p></a>`).join('') : '<p>No service categories are available yet.</p>'}</div></section>`;
+  <section class="content-section"><div class="section-heading"><div><p class="eyebrow">BROWSE SERVICES</p><h2>What do you need help with?</h2></div><a href="#providers">See providers</a></div><div id="category-grid" class="category-grid" aria-busy="true"></div></section>`;
+}
+
+export async function loadHomeCategories(container) {
+  const categories = await api.categories();
+  container.innerHTML = categoryCards(categories);
+  container.removeAttribute('aria-busy');
 }
 
 export function loginPage() {
